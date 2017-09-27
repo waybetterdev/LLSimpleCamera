@@ -52,7 +52,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(self) {
         [self setupWithQuality:quality position:position videoEnabled:videoEnabled];
     }
-    
+
     return self;
 }
 
@@ -86,27 +86,27 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    
+
     self.view.backgroundColor = [UIColor clearColor];
     self.view.autoresizingMask = UIViewAutoresizingNone;
-    
+
     self.preview = [[UIView alloc] initWithFrame:CGRectZero];
     self.preview.backgroundColor = [UIColor clearColor];
     [self.view addSubview:self.preview];
-    
+
     // tap to focus
     self.tapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(previewTapped:)];
     self.tapGesture.numberOfTapsRequired = 1;
     [self.tapGesture setDelaysTouchesEnded:NO];
     [self.preview addGestureRecognizer:self.tapGesture];
-    
+
     //pinch to zoom
     if (_zoomingEnabled) {
         self.pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handlePinchGesture:)];
         self.pinchGesture.delegate = self;
         [self.preview addGestureRecognizer:self.pinchGesture];
     }
-    
+
     // add focus box to view
     [self addDefaultFocusBox];
 }
@@ -133,7 +133,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             break;
         }
     }
-    
+
     if (allTouchesAreOnThePreviewLayer) {
         _effectiveScale = _beginGestureScale * recognizer.scale;
         if (_effectiveScale < 1.0f)
@@ -196,7 +196,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(!_session) {
         _session = [[AVCaptureSession alloc] init];
         _session.sessionPreset = self.cameraQuality;
-        
+
         // preview layer
         CGRect bounds = self.preview.layer.bounds;
         _captureVideoPreviewLayer = [[AVCaptureVideoPreviewLayer alloc] initWithSession:self.session];
@@ -204,7 +204,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
         _captureVideoPreviewLayer.bounds = bounds;
         _captureVideoPreviewLayer.position = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
         [self.preview.layer addSublayer:_captureVideoPreviewLayer];
-        
+
         AVCaptureDevicePosition devicePosition;
         switch (self.position) {
             case LLCameraPositionRear:
@@ -227,26 +227,26 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
                 devicePosition = AVCaptureDevicePositionUnspecified;
                 break;
         }
-        
+
         if(devicePosition == AVCaptureDevicePositionUnspecified) {
             self.videoCaptureDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
         } else {
             self.videoCaptureDevice = [self cameraWithPosition:devicePosition];
         }
-        
+
         NSError *error = nil;
         _videoDeviceInput = [AVCaptureDeviceInput deviceInputWithDevice:_videoCaptureDevice error:&error];
-        
+
         if (!_videoDeviceInput) {
             [self passError:error];
             return;
         }
-        
+
         if([self.session canAddInput:_videoDeviceInput]) {
             [self.session  addInput:_videoDeviceInput];
             self.captureVideoPreviewLayer.connection.videoOrientation = [self orientationForConnection];
         }
-        
+
         // add audio if video is enabled
         if(self.videoEnabled) {
             _audioCaptureDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
@@ -254,33 +254,33 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             if (!_audioDeviceInput) {
                 [self passError:error];
             }
-        
+
             if([self.session canAddInput:_audioDeviceInput]) {
                 [self.session addInput:_audioDeviceInput];
             }
-        
+
             _movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
             [_movieFileOutput setMovieFragmentInterval:kCMTimeInvalid];
             if([self.session canAddOutput:_movieFileOutput]) {
                 [self.session addOutput:_movieFileOutput];
             }
         }
-        
+
         // continiously adjust white balance
         self.whiteBalanceMode = AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance;
-        
+
         // image output
         self.stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
         NSDictionary *outputSettings = [[NSDictionary alloc] initWithObjectsAndKeys: AVVideoCodecJPEG, AVVideoCodecKey, nil];
         [self.stillImageOutput setOutputSettings:outputSettings];
         [self.session addOutput:self.stillImageOutput];
     }
-    
+
     //if we had disabled the connection on capture, re-enable it
     if (![self.captureVideoPreviewLayer.connection isEnabled]) {
         [self.captureVideoPreviewLayer.connection setEnabled:YES];
     }
-    
+
     [self.session startRunning];
 }
 
@@ -302,40 +302,44 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
         onCapture(self, nil, nil, error);
         return;
     }
-    
+
     // get connection and set orientation
     AVCaptureConnection *videoConnection = [self captureConnection];
     videoConnection.videoOrientation = [self orientationForConnection];
-    
+
+    UIDeviceOrientation currentDeviceOrientation = UIDevice.currentDevice.orientation;
+
     BOOL flashActive = self.videoCaptureDevice.flashActive;
     if (!flashActive && animationBlock) {
         animationBlock(self.captureVideoPreviewLayer);
     }
-    
+
     [self.stillImageOutput captureStillImageAsynchronouslyFromConnection:videoConnection completionHandler: ^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
-        
+
          UIImage *image = nil;
          NSDictionary *metadata = nil;
-         
+
          // check if we got the image buffer
          if (imageSampleBuffer != NULL) {
              CFDictionaryRef exifAttachments = CMGetAttachment(imageSampleBuffer, kCGImagePropertyExifDictionary, NULL);
              if(exifAttachments) {
                  metadata = (__bridge NSDictionary*)exifAttachments;
              }
-             
+
              NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:imageSampleBuffer];
              image = [[UIImage alloc] initWithData:imageData];
-             
+
              if(exactSeenImage) {
                  image = [self cropImage:image usingPreviewLayer:self.captureVideoPreviewLayer];
              }
-             
+
              if(self.fixOrientationAfterCapture) {
+                 UIImageOrientation imageOrientation = [UIImage rotationNeededForImageCapturedWithDeviceOrientation:currentDeviceOrientation];
+                 image = [UIImage imageWithCGImage:image.CGImage scale:1.0f orientation:imageOrientation];
                  image = [image fixOrientation];
              }
          }
-         
+
          // trigger the block
          if(onCapture) {
              dispatch_async(dispatch_get_main_queue(), ^{
@@ -346,7 +350,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
 }
 
 -(void)capture:(void (^)(LLSimpleCamera *camera, UIImage *image, NSDictionary *metadata, NSError *error))onCapture exactSeenImage:(BOOL)exactSeenImage {
-    
+
     [self capture:onCapture exactSeenImage:exactSeenImage animationBlock:^(AVCaptureVideoPreviewLayer *layer) {
         CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"opacity"];
         animation.duration = 0.1;
@@ -377,11 +381,11 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
         [self passError:error];
         return;
     }
-    
+
     if(self.flash == LLCameraFlashOn) {
         [self enableTorch:YES];
     }
-    
+
     // set video orientation
     for(AVCaptureConnection *connection in [self.movieFileOutput connections]) {
         for (AVCaptureInputPort *port in [connection inputPorts]) {
@@ -393,9 +397,9 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             }
         }
     }
-    
+
     self.didRecordCompletionBlock = completionBlock;
-    
+
     [self.movieFileOutput startRecordingToOutputFileURL:url recordingDelegate:self];
 }
 
@@ -404,7 +408,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(!self.videoEnabled) {
         return;
     }
-    
+
     [self.movieFileOutput stopRecording];
 }
 
@@ -418,7 +422,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
 {
     self.recording = NO;
     [self enableTorch:NO];
-    
+
     if(self.didRecordCompletionBlock) {
         self.didRecordCompletionBlock(self, outputFileURL, error);
     }
@@ -463,14 +467,14 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             break;
         }
     }
-    
+
     return videoConnection;
 }
 
 - (void)setVideoCaptureDevice:(AVCaptureDevice *)videoCaptureDevice
 {
     _videoCaptureDevice = videoCaptureDevice;
-    
+
     if(videoCaptureDevice.flashMode == AVCaptureFlashModeAuto) {
         _flash = LLCameraFlashAuto;
     } else if(videoCaptureDevice.flashMode == AVCaptureFlashModeOn) {
@@ -480,9 +484,9 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     } else {
         _flash = LLCameraFlashOff;
     }
-    
+
     _effectiveScale = 1.0f;
-    
+
     // trigger block
     if(self.onDeviceChange) {
         __weak typeof(self) weakSelf = self;
@@ -504,9 +508,9 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
 {
     if(!self.session)
         return NO;
-    
+
     AVCaptureFlashMode flashMode;
-    
+
     if(cameraFlash == LLCameraFlashOn) {
         flashMode = AVCaptureFlashModeOn;
     } else if(cameraFlash == LLCameraFlashAuto) {
@@ -514,13 +518,13 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     } else {
         flashMode = AVCaptureFlashModeOff;
     }
-    
+
     if([self.videoCaptureDevice isFlashModeSupported:flashMode]) {
         NSError *error;
         if([self.videoCaptureDevice lockForConfiguration:&error]) {
             self.videoCaptureDevice.flashMode = flashMode;
             [self.videoCaptureDevice unlockForConfiguration];
-            
+
             _flash = cameraFlash;
             return YES;
         } else {
@@ -562,7 +566,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             if ([videoConnection isVideoMirroringSupported]) {
                 [videoConnection setVideoMirrored:NO];
             }
-            
+
             if ([pictureConnection isVideoMirroringSupported]) {
                 [pictureConnection setVideoMirrored:NO];
             }
@@ -573,7 +577,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             if ([videoConnection isVideoMirroringSupported]) {
                 [videoConnection setVideoMirrored:YES];
             }
-            
+
             if ([pictureConnection isVideoMirroringSupported]) {
                 [pictureConnection setVideoMirrored:YES];
             }
@@ -585,7 +589,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
             if ([videoConnection isVideoMirroringSupported]) {
                 [videoConnection setVideoMirrored:shouldMirror];
             }
-            
+
             if ([pictureConnection isVideoMirroringSupported]) {
                 [pictureConnection setVideoMirrored:shouldMirror];
             }
@@ -601,13 +605,13 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(!self.session) {
         return self.position;
     }
-    
+
     if(self.position == LLCameraPositionRear) {
         self.cameraPosition = LLCameraPositionFront;
     } else {
         self.cameraPosition = LLCameraPositionRear;
     }
-    
+
     return self.position;
 }
 
@@ -616,20 +620,20 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(_position == cameraPosition || !self.session) {
         return;
     }
-    
+
     if(cameraPosition == LLCameraPositionRear && ![self.class isRearCameraAvailable]) {
         return;
     }
-    
+
     if(cameraPosition == LLCameraPositionFront && ![self.class isFrontCameraAvailable]) {
         return;
     }
-    
+
     [self.session beginConfiguration];
-    
+
     // remove existing input
     [self.session removeInput:self.videoDeviceInput];
-    
+
     // get new input
     AVCaptureDevice *device = nil;
     if(self.videoDeviceInput.device.position == AVCaptureDevicePositionBack) {
@@ -637,11 +641,11 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     } else {
         device = [self cameraWithPosition:AVCaptureDevicePositionBack];
     }
-    
+
     if(!device) {
         return;
     }
-    
+
     // add input to session
     NSError *error = nil;
     AVCaptureDeviceInput *videoInput = [[AVCaptureDeviceInput alloc] initWithDevice:device error:&error];
@@ -650,12 +654,12 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
         [self.session commitConfiguration];
         return;
     }
-    
+
     _position = cameraPosition;
-    
+
     [self.session addInput:videoInput];
     [self.session commitConfiguration];
-    
+
     self.videoCaptureDevice = device;
     self.videoDeviceInput = videoInput;
 
@@ -680,7 +684,7 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(!self.tapToFocus) {
         return;
     }
-    
+
     CGPoint touchedPoint = [gestureRecognizer locationInView:self.preview];
     CGPoint pointOfInterest = [self convertToPointOfInterestFromViewCoordinates:touchedPoint
                                                                    previewLayer:self.captureVideoPreviewLayer
@@ -698,14 +702,14 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     focusBox.borderColor = [[UIColor yellowColor] CGColor];
     focusBox.opacity = 0.0f;
     [self.view.layer addSublayer:focusBox];
-    
+
     CABasicAnimation *focusBoxAnimation = [CABasicAnimation animationWithKeyPath:@"opacity"];
     focusBoxAnimation.duration = 0.75;
     focusBoxAnimation.autoreverses = NO;
     focusBoxAnimation.repeatCount = 0.0;
     focusBoxAnimation.fromValue = [NSNumber numberWithFloat:1.0];
     focusBoxAnimation.toValue = [NSNumber numberWithFloat:0.0];
-    
+
     [self alterFocusBox:focusBox animation:focusBoxAnimation];
 }
 
@@ -735,14 +739,14 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
     if(self.focusBoxLayer) {
         // clear animations
         [self.focusBoxLayer removeAllAnimations];
-        
+
         // move layer to the touch point
         [CATransaction begin];
         [CATransaction setValue: (id) kCFBooleanTrue forKey: kCATransactionDisableActions];
         self.focusBoxLayer.position = point;
         [CATransaction commit];
     }
-    
+
     if(self.focusBoxAnimation) {
         // run the animation
         [self.focusBoxLayer addAnimation:self.focusBoxAnimation forKey:@"animateOpacity"];
@@ -764,20 +768,20 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
-    
+
     self.preview.frame = CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height);
-    
+
     CGRect bounds = self.preview.bounds;
     self.captureVideoPreviewLayer.bounds = bounds;
     self.captureVideoPreviewLayer.position = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
-    
+
     self.captureVideoPreviewLayer.connection.videoOrientation = [self orientationForConnection];
 }
 
 - (AVCaptureVideoOrientation)orientationForConnection
 {
     AVCaptureVideoOrientation videoOrientation = AVCaptureVideoOrientationPortrait;
-    
+
     if(self.useDeviceOrientation) {
         switch ([UIDevice currentDevice].orientation) {
             case UIDeviceOrientationLandscapeLeft:
@@ -811,14 +815,14 @@ NSString *const LLSimpleCameraErrorDomain = @"LLSimpleCameraErrorDomain";
                 break;
         }
     }
-    
+
     return videoOrientation;
 }
 
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
 {
     [super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
-    
+
     // layout subviews is not called when rotating from landscape right/left to left/right
     if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation) && UIInterfaceOrientationIsLandscape(toInterfaceOrientation)) {
         [self.view setNeedsLayout];

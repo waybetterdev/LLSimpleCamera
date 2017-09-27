@@ -6,4 +6,6 @@
 
 @interface UIImage(fixOrientation)
 - (UIImage *)fixOrientation;
+/** Returns the UIImageOrientation needed for an image captured with a specific deviceOrientation */
++ (UIImageOrientation)rotationNeededForImageCapturedWithDeviceOrientation:(UIDeviceOrientation)deviceOrientation;
 @end
